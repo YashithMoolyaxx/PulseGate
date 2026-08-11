@@ -1,0 +1,77 @@
+
+
+services:
+  # -------------------------------------------------------------
+  # 1. FastAPI Gateway Backend Service
+  # -------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pulsegate_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://pulsegate_user:pulsegate_pass@postgres:5432/pulsegate_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pulsegate_network
+
+  # -------------------------------------------------------------
+  # 2. PostgreSQL Primary Database Service
+  # -------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: pulsegate_postgres
+    environment:
+      POSTGRES_USER: pulsegate_user
+      POSTGRES_PASSWORD: pulsegate_pass
+      POSTGRES_DB: pulsegate_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulsegate_user -d pulsegate_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulsegate_network
+
+  # -------------------------------------------------------------
+  # 3. Redis High-Speed Rate Limiter & Queue Service
+  # -------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: pulsegate_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulsegate_network
+
+# -------------------------------------------------------------
+# Named Volumes for Persistent Storage
+# -------------------------------------------------------------
+volumes:
+  postgres_data:
+  redis_data:
+
+# -------------------------------------------------------------
+# Isolated Private Network
+# -------------------------------------------------------------
+networks:
+  pulsegate_network:
+    driver: bridge
