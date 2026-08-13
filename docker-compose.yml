@@ -1,5 +1,3 @@
-
-
 services:
   # -------------------------------------------------------------
   # 1. FastAPI Gateway Backend Service
@@ -45,7 +43,7 @@ services:
       - pulsegate_network
 
   # -------------------------------------------------------------
-  # 3. Redis High-Speed Rate Limiter & Queue Service
+  # 3. Redis High-Speed Rate Limiter
   # -------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -63,7 +61,7 @@ services:
       - pulsegate_network
 
 # -------------------------------------------------------------
-# Named Volumes for Persistent Storage
+# Persistent Volumes so database data is NEVER lost on restart!
 # -------------------------------------------------------------
 volumes:
   postgres_data:
