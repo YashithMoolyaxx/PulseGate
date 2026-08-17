@@ -1,7 +1,4 @@
 services:
-  # -------------------------------------------------------------
-  # 1. FastAPI Gateway Backend Service
-  # -------------------------------------------------------------
   backend:
     build:
       context: ./backend
@@ -20,9 +17,20 @@ services:
     networks:
       - pulsegate_network
 
-  # -------------------------------------------------------------
-  # 2. PostgreSQL Primary Database Service
-  # -------------------------------------------------------------
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pulsegate_worker
+    command: ["arq", "app.core.worker.WorkerSettings"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - pulsegate_network
+
   postgres:
     image: postgres:15-alpine
     container_name: pulsegate_postgres
@@ -42,9 +50,6 @@ services:
     networks:
       - pulsegate_network
 
-  # -------------------------------------------------------------
-  # 3. Redis High-Speed Rate Limiter
-  # -------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: pulsegate_redis
@@ -60,16 +65,10 @@ services:
     networks:
       - pulsegate_network
 
-# -------------------------------------------------------------
-# Persistent Volumes so database data is NEVER lost on restart!
-# -------------------------------------------------------------
 volumes:
   postgres_data:
   redis_data:
 
-# -------------------------------------------------------------
-# Isolated Private Network
-# -------------------------------------------------------------
 networks:
   pulsegate_network:
     driver: bridge
