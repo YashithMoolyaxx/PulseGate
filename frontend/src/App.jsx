@@ -6,6 +6,8 @@ import WebhookTester from './components/WebhookTester';
 import AuthModal from './components/AuthModal';
 import { Shield } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [healthStatus, setHealthStatus] = useState(false);
@@ -28,11 +30,11 @@ export default function App() {
 
     try {
       // 1. Health Probe
-      const healthRes = await fetch('http://localhost:8000/v1/health');
+      const healthRes = await fetch(`${API_BASE_URL}/v1/health`);
       setHealthStatus(healthRes.ok);
 
       // 2. Project Keys
-      const keysRes = await fetch('http://localhost:8000/v1/api-keys', {
+      const keysRes = await fetch(`${API_BASE_URL}/v1/api-keys`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (keysRes.ok) {
@@ -44,7 +46,7 @@ export default function App() {
       }
 
       // 3. Live Prometheus Metrics
-      const metricsRes = await fetch('http://localhost:8000/metrics');
+      const metricsRes = await fetch(`${API_BASE_URL}/metrics`);
       if (metricsRes.ok) {
         const metricsText = await metricsRes.text();
         
@@ -85,11 +87,12 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#f4f4f5] text-zinc-900 overflow-hidden font-sans">
-      {!user && <AuthModal onAuthSuccess={(userData) => setUser(userData)} />}
+      {!user && <AuthModal apiBaseUrl={API_BASE_URL} onAuthSuccess={(userData) => setUser(userData)} />}
 
       {user && (
         <>
           <Sidebar
+            apiBaseUrl={API_BASE_URL}
             user={user}
             onLogout={handleLogout}
             keysList={keysList}
@@ -129,11 +132,13 @@ export default function App() {
             />
 
             <ProxyTester
+              apiBaseUrl={API_BASE_URL}
               defaultApiKey={selectedKey?.raw_api_key || ''}
               onProxyFired={fetchDashboardData}
             />
 
             <WebhookTester
+              apiBaseUrl={API_BASE_URL}
               defaultApiKey={selectedKey?.raw_api_key || ''}
               onWebhookFired={fetchDashboardData}
             />

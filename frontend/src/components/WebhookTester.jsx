@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Radio, CheckCircle2 } from 'lucide-react';
 
-export default function WebhookTester({ defaultApiKey, onWebhookFired }) {
+export default function WebhookTester({ apiBaseUrl = 'http://localhost:8000', defaultApiKey, onWebhookFired }) {
   const [apiKey, setApiKey] = useState(defaultApiKey || '');
   const [targetUrl, setTargetUrl] = useState('https://httpbin.org/post');
   const [eventType, setEventType] = useState('rate_limit.warning');
@@ -16,7 +16,7 @@ export default function WebhookTester({ defaultApiKey, onWebhookFired }) {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch('http://localhost:8000/v1/webhooks/dispatch', {
+      const res = await fetch(`${apiBaseUrl}/v1/webhooks/dispatch`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

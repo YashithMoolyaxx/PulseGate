@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail, UserPlus, LogIn, AlertCircle, Network } from 'lucide-react';
 
-export default function AuthModal({ onAuthSuccess }) {
+export default function AuthModal({ apiBaseUrl = 'http://localhost:8000', onAuthSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -13,7 +13,7 @@ export default function AuthModal({ onAuthSuccess }) {
     setLoading(true);
     setError('');
 
-    const endpoint = isLogin ? 'http://localhost:8000/v1/auth/login' : 'http://localhost:8000/v1/auth/signup';
+    const endpoint = isLogin ? `${apiBaseUrl}/v1/auth/login` : `${apiBaseUrl}/v1/auth/signup`;
 
     try {
       const res = await fetch(endpoint, {

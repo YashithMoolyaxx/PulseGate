@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Send, Clock, CheckCircle2, XCircle } from 'lucide-react';
 
-export default function ProxyTester({ defaultApiKey, onProxyFired }) {
+export default function ProxyTester({ apiBaseUrl = 'http://localhost:8000', defaultApiKey, onProxyFired }) {
   const [apiKey, setApiKey] = useState(defaultApiKey || '');
   const [path, setPath] = useState('get');
   const [loading, setLoading] = useState(false);
@@ -18,7 +18,7 @@ export default function ProxyTester({ defaultApiKey, onProxyFired }) {
     const start = performance.now();
 
     try {
-      const res = await fetch(`http://localhost:8000/v1/proxy/${path}`, {
+      const res = await fetch(`${apiBaseUrl}/v1/proxy/${path}`, {
         method: 'GET',
         headers: { 'x-api-key': apiKey },
       });

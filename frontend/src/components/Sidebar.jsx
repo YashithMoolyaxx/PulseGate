@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Network, Plus, KeyRound, Check, Copy, LogOut, User, AlertCircle } from 'lucide-react';
 
-export default function Sidebar({ user, onLogout, keysList, selectedKey, onSelectKey, onKeyCreated }) {
+export default function Sidebar({ apiBaseUrl = 'http://localhost:8000', user, onLogout, keysList, selectedKey, onSelectKey, onKeyCreated }) {
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState('');
   const [rpm, setRpm] = useState(60);
@@ -23,7 +23,7 @@ export default function Sidebar({ user, onLogout, keysList, selectedKey, onSelec
     }
 
     try {
-      const res = await fetch('http://localhost:8000/v1/api-keys', {
+      const res = await fetch(`${apiBaseUrl}/v1/api-keys`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -53,7 +53,6 @@ export default function Sidebar({ user, onLogout, keysList, selectedKey, onSelec
 
   return (
     <aside className="w-72 bg-[#18181b] text-zinc-100 flex flex-col h-screen p-4 select-none border-r border-zinc-800">
-      {/* Brand Header */}
       <div className="flex items-center gap-3 px-2 py-3 border-b border-zinc-800 mb-5">
         <div className="bg-zinc-800 p-2 rounded-xl text-zinc-200 border border-zinc-700">
           <Network className="w-4 h-4" />
@@ -66,7 +65,6 @@ export default function Sidebar({ user, onLogout, keysList, selectedKey, onSelec
         </div>
       </div>
 
-      {/* New Project Action */}
       <button
         onClick={() => { setCreatedSecret(null); setError(''); setShowModal(true); }}
         className="w-full bg-white hover:bg-zinc-100 text-zinc-900 font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs transition mb-4 shadow-sm"
@@ -74,7 +72,6 @@ export default function Sidebar({ user, onLogout, keysList, selectedKey, onSelec
         <Plus className="w-4 h-4" /> Provision New Key
       </button>
 
-      {/* Projects List Header */}
       <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 px-2 mb-2">
         Active Projects ({keysList.length})
       </div>
@@ -115,7 +112,6 @@ export default function Sidebar({ user, onLogout, keysList, selectedKey, onSelec
         )}
       </div>
 
-      {/* User Footer */}
       <div className="pt-3 mt-auto border-t border-zinc-800 flex items-center justify-between px-1">
         <div className="flex items-center gap-2 truncate">
           <div className="p-1.5 rounded-full bg-zinc-800 text-zinc-300">
@@ -132,7 +128,6 @@ export default function Sidebar({ user, onLogout, keysList, selectedKey, onSelec
         </button>
       </div>
 
-      {/* Provision Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-zinc-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-zinc-200 rounded-2xl p-6 w-full max-w-md shadow-2xl text-zinc-900">
