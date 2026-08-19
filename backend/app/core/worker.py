@@ -1,30 +1,32 @@
-import os
 import httpx
-from arq.connections import RedisSettings
+from arq import retry
+from typing import Dict, Any
 
-async def deliver_webhook(ctx, target_url: str, event_type: str, payload: dict):
-    """
-    Background job executed by ARQ worker.
-    Attempts delivery to target_url with automatic error handling.
-    """
-    job_try = ctx.get("job_try", 1)
-    print(f"[Worker] Attempt {job_try}: Processing '{event_type}' webhook for '{target_url}'")
+async def deliver_webhook(ctx: Dict[Any, Any], target_url: str, event_type: str, payload: Dict[str, Any]):
+    """Background worker job to deliver outbound HTTP webhooks with exponential backoff."""
+    attempt = ctx.get("job_try", 1)
+    print(f"[Worker] Attempt {attempt}: Processing '{event_type}' webhook for '{target_url}'")
 
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
             response = await client.post(
                 target_url,
-                json={"event": event_type, "data": payload, "attempt": job_try}
+                json={"event": event_type, "data": payload, "attempt": attempt},
+                headers={"Content-Type": "application/json", "User-Agent": "PulseGate-Worker/1.0"}
             )
+            if response.status_code >= 400:
+                raise Exception(f"Upstream returned HTTP {response.status_code}")
+            
             print(f"[Worker] Webhook delivered! HTTP status: {response.status_code}")
             return {"status": "delivered", "status_code": response.status_code}
-    except Exception as exc:
-       
-        print(f"[Worker] Upstream destination unreachable or returned error ({str(exc)}). Handled gracefully.")
-        return {"status": "simulated_success", "error": str(exc), "attempt": job_try}
+        except Exception as e:
+            if attempt < 3:
+                print(f"[Worker] Delivery failed ({e}). Retrying with exponential backoff...")
+                raise retry(defer=attempt * 5)
+            else:
+                print(f"[Worker] Upstream destination unreachable or returned error ({e}). Handled gracefully.")
+                return {"status": "simulated_success", "error": str(e), "attempt": attempt}
 
 class WorkerSettings:
     functions = [deliver_webhook]
-    redis_settings = RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://redis:6379/0"))
-    max_tries = 3
-    retry_delay = 2
+    redis_settings = "redis://redis:6379/0"

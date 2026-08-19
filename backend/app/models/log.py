@@ -1,19 +1,18 @@
-import uuid
-from datetime import datetime
-from sqlalchemy import String, Integer, DateTime, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+import uuid
 from app.core.database import Base
 
 class GatewayLog(Base):
     __tablename__ = "gateway_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    api_key_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("api_keys.id"), nullable=True)
-    endpoint: Mapped[str] = mapped_column(String(255), nullable=False)
-    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
-    response_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
-    client_ip: Mapped[str] = mapped_column(String(45), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    api_key_id = Column(UUID(as_uuid=True), ForeignKey("api_keys.id", ondelete="CASCADE"), nullable=False, index=True)
+    endpoint = Column(String(255), nullable=False)
+    status_code = Column(Integer, nullable=False)
+    response_time_ms = Column(Integer, nullable=False)
+    client_ip = Column(String(45), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
 
-    api_key_obj: Mapped["APIKey"] = relationship("APIKey", back_populates="logs")
+    api_key = relationship("APIKey", back_populates="logs")

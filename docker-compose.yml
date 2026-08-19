@@ -1,4 +1,38 @@
+version: '3.8'
+
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: pulsegate_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pulsegate_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pulsegate_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulsegate_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulsegate_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulsegate_net
+
   backend:
     build:
       context: ./backend
@@ -7,15 +41,16 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://pulsegate_user:pulsegate_pass@postgres:5432/pulsegate_db
-      - REDIS_URL=redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/pulsegate_db
+      REDIS_URL: redis://redis:6379/0
+      UPSTREAM_SERVICE_URL: https://httpbin.org
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - pulsegate_network
+      - pulsegate_net
 
   worker:
     build:
@@ -24,51 +59,31 @@ services:
     container_name: pulsegate_worker
     command: ["arq", "app.core.worker.WorkerSettings"]
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/pulsegate_db
+      REDIS_URL: redis://redis:6379/0
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - pulsegate_network
+      - pulsegate_net
 
-  postgres:
-    image: postgres:15-alpine
-    container_name: pulsegate_postgres
-    environment:
-      POSTGRES_USER: pulsegate_user
-      POSTGRES_PASSWORD: pulsegate_pass
-      POSTGRES_DB: pulsegate_db
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pulsegate_frontend
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pulsegate_user -d pulsegate_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - "3000:3000"
+    depends_on:
+      - backend
     networks:
-      - pulsegate_network
-
-  redis:
-    image: redis:7-alpine
-    container_name: pulsegate_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - pulsegate_network
+      - pulsegate_net
 
 volumes:
   postgres_data:
-  redis_data:
 
 networks:
-  pulsegate_network:
+  pulsegate_net:
     driver: bridge

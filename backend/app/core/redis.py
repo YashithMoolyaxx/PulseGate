@@ -1,12 +1,20 @@
+import redis.asyncio as aioredis
+from typing import AsyncGenerator
 import os
-from redis.asyncio import Redis
 
-# Read Redis URL from Docker container environment
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
-# Global non-blocking async Redis client instance
-redis_client: Redis = Redis.from_url(REDIS_URL, decode_responses=True)
+# Global async Redis client connection pool
+redis_pool = aioredis.ConnectionPool.from_url(
+    REDIS_URL,
+    decode_responses=True,
+    max_connections=20
+)
 
-async def get_redis() -> Redis:
-    """FastAPI Dependency yielding the global async Redis client."""
-    return redis_client
+async def get_redis() -> AsyncGenerator[aioredis.Redis, None]:
+    """Dependency yield for FastAPI endpoints & middleware."""
+    client = aioredis.Redis(connection_pool=redis_pool)
+    try:
+        yield client
+    finally:
+        await client.close()

@@ -6,12 +6,12 @@ from app.core.metrics import REQUEST_COUNT, REQUEST_LATENCY
 
 class PrometheusMetricsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
-        
-        if request.url.path == "/metrics":
+        endpoint = request.url.path
+
+        if endpoint in ("/metrics", "/v1/health", "/", "/docs", "/openapi.json"):
             return await call_next(request)
 
         start_time = time.time()
-        endpoint = request.url.path
 
         try:
             response = await call_next(request)
@@ -21,7 +21,7 @@ class PrometheusMetricsMiddleware(BaseHTTPMiddleware):
             raise exc from None
         finally:
             duration = time.time() - start_time
-            
+            # Record Latency Histogram & Request Counter
             REQUEST_LATENCY.labels(endpoint=endpoint).observe(duration)
             REQUEST_COUNT.labels(
                 method=request.method,
