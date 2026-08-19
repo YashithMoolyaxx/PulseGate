@@ -1,6 +1,10 @@
+import os
 import httpx
-from arq import retry
+from arq.worker import Retry
+from arq.connections import RedisSettings
 from typing import Dict, Any
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 async def deliver_webhook(ctx: Dict[Any, Any], target_url: str, event_type: str, payload: Dict[str, Any]):
     """Background worker job to deliver outbound HTTP webhooks with exponential backoff."""
@@ -22,11 +26,11 @@ async def deliver_webhook(ctx: Dict[Any, Any], target_url: str, event_type: str,
         except Exception as e:
             if attempt < 3:
                 print(f"[Worker] Delivery failed ({e}). Retrying with exponential backoff...")
-                raise retry(defer=attempt * 5)
+                raise Retry(defer=attempt * 5)
             else:
                 print(f"[Worker] Upstream destination unreachable or returned error ({e}). Handled gracefully.")
                 return {"status": "simulated_success", "error": str(e), "attempt": attempt}
 
 class WorkerSettings:
     functions = [deliver_webhook]
-    redis_settings = "redis://redis:6379/0"
+    redis_settings = RedisSettings.from_dsn(REDIS_URL)
