@@ -25,6 +25,9 @@ class APIKeyListItem(BaseModel):
     class Config:
         from_attributes = True
 
+# ------------------------------------------------------------------
+# 1. CREATE API KEY (POST /v1/api-keys)
+# ------------------------------------------------------------------
 @router.post("/api-keys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     key_in: APIKeyCreate,
@@ -55,6 +58,9 @@ async def create_api_key(
         created_at=api_key_entry.created_at
     )
 
+# ------------------------------------------------------------------
+# 2. LIST API KEYS (GET /v1/api-keys)
+# ------------------------------------------------------------------
 @router.get("/api-keys", response_model=List[APIKeyListItem])
 async def list_api_keys(
     db: AsyncSession = Depends(get_db),
@@ -65,3 +71,31 @@ async def list_api_keys(
         select(APIKey).where(APIKey.user_id == current_user.id).order_by(APIKey.created_at.desc())
     )
     return result.scalars().all()
+
+# ------------------------------------------------------------------
+# 3. DELETE API KEY (DELETE /v1/api-keys/{key_id})
+# ------------------------------------------------------------------
+@router.delete("/api-keys/{key_id}", status_code=status.HTTP_200_OK)
+async def delete_api_key(
+    key_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete/revoke an API key owned by the logged-in user."""
+    query = select(APIKey).where(
+        APIKey.id == key_id,
+        APIKey.user_id == current_user.id
+    )
+    result = await db.execute(query)
+    api_key_entry = result.scalar_one_or_none()
+
+    if not api_key_entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found or you do not have permission to delete it."
+        )
+
+    await db.delete(api_key_entry)
+    await db.commit()
+
+    return {"message": "API key revoked successfully", "id": str(key_id)}

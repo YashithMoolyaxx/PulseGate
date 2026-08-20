@@ -14,7 +14,7 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('pulsegate_token') || '');
   const [userEmail, setUserEmail] = useState(localStorage.getItem('pulsegate_email') || '');
   
-  // Real API Keys State (Only holds real keys from backend)
+  // Real API Keys ONLY (Strict empty array default)
   const [apiKeys, setApiKeys] = useState([]);
   const [selectedKey, setSelectedKey] = useState(null);
   const [rawKeysMap, setRawKeysMap] = useState(() => {
@@ -26,16 +26,16 @@ export default function App() {
   });
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Toast Notification State
+  // Floating Toast Notification
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
-  // Metrics & Logs State
+  // Metrics State
   const [totalRequests, setTotalRequests] = useState(0);
   const [rateLimitHits, setRateLimitHits] = useState(0);
   const [webhooksSent, setWebhooksSent] = useState(0);
   const [logs, setLogs] = useState([]);
 
-  // Toast Trigger Helper
+  // Toast Helper
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => {
@@ -49,7 +49,7 @@ export default function App() {
     setUserEmail(email);
     localStorage.setItem('pulsegate_token', accessToken);
     localStorage.setItem('pulsegate_email', email);
-    showToast(`Welcome back, ${email}!`, 'success');
+    showToast(`Welcome, ${email}!`, 'success');
   };
 
   const handleLogout = () => {
@@ -59,10 +59,11 @@ export default function App() {
     setSelectedKey(null);
     localStorage.removeItem('pulsegate_token');
     localStorage.removeItem('pulsegate_email');
-    showToast('Signed out successfully.', 'success');
+    localStorage.removeItem('pulsegate_raw_keys');
+    showToast('Signed out.', 'success');
   };
 
-  // Save Raw Key Secret to Local Storage
+  // Save Raw Key to Browser Storage
   const saveRawKey = (keyId, rawKey) => {
     if (!keyId || !rawKey) return;
     const updated = { ...rawKeysMap, [keyId]: rawKey };
@@ -70,7 +71,7 @@ export default function App() {
     localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updated));
   };
 
-  // Fetch API Keys from Backend
+  // Fetch only real provisioned keys from Backend DB
   const fetchKeys = async () => {
     if (!token) return;
     setIsSyncing(true);
@@ -81,10 +82,11 @@ export default function App() {
       const fetchedKeys = res.data || [];
       setApiKeys(fetchedKeys);
       
-      // Auto-select first key if none currently selected
-      if (fetchedKeys.length > 0 && !selectedKey) {
-        setSelectedKey(fetchedKeys[0]);
-      } else if (fetchedKeys.length === 0) {
+      if (fetchedKeys.length > 0) {
+        if (!selectedKey || !fetchedKeys.some(k => k.id === selectedKey.id)) {
+          setSelectedKey(fetchedKeys[0]);
+        }
+      } else {
         setSelectedKey(null);
       }
     } catch (err) {
@@ -105,10 +107,10 @@ export default function App() {
     saveRawKey(keyData.id, keyData.raw_api_key);
     fetchKeys();
     setSelectedKey(keyData);
-    showToast(`API Key "${keyData.name}" created successfully!`, 'success');
+    showToast(`API Key "${keyData.name}" created!`, 'success');
   };
 
-  // Delete API Key Handler (Calls backend DELETE and clears cache)
+  // Delete API Key Handler
   const handleDeleteKey = async (keyId, keyName) => {
     if (!confirm(`Are you sure you want to revoke API key "${keyName || 'this key'}"?`)) {
       return;
@@ -119,17 +121,17 @@ export default function App() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Update local keys list immediately
+      // Remove from state
       const remainingKeys = apiKeys.filter((k) => k.id !== keyId);
       setApiKeys(remainingKeys);
 
-      // Clean up cached raw key in local storage
+      // Clean cached raw key
       const updatedRawMap = { ...rawKeysMap };
       delete updatedRawMap[keyId];
       setRawKeysMap(updatedRawMap);
       localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updatedRawMap));
 
-      // Handle active key selection fallback
+      // Active key fallback
       if (selectedKey?.id === keyId) {
         setSelectedKey(remainingKeys.length > 0 ? remainingKeys[0] : null);
       }
@@ -153,10 +155,8 @@ export default function App() {
     setLogs((prev) => [logEntry, ...prev.slice(0, 9)]);
   };
 
-  // Active raw key for the selected key
   const activeRawKey = selectedKey ? (rawKeysMap[selectedKey.id] || '') : '';
 
-  // Auth Screen
   if (!token) {
     return (
       <AuthModal
@@ -169,7 +169,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-gray-900 font-sans antialiased flex flex-col md:flex-row relative">
       
-      {/* Toast Notification Banner */}
+      {/* Toast Notification */}
       {toast.show && (
         <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border bg-white animate-in slide-in-from-top-2 duration-200">
           {toast.type === 'success' ? (
@@ -187,7 +187,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Sidebar with Key Switching & Delete Action */}
       <Sidebar
         userEmail={userEmail}
         apiKeys={apiKeys}
@@ -200,7 +199,6 @@ export default function App() {
         apiBaseUrl={API_BASE_URL}
       />
 
-      {/* Main Workspace */}
       <main className="flex-1 p-4 sm:p-8 space-y-6 max-w-7xl overflow-x-hidden">
         <MetricsCards
           apiKeysCount={apiKeys.length}
@@ -209,7 +207,6 @@ export default function App() {
           webhooksSent={webhooksSent}
         />
 
-        {/* 2-Column Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ApiKeyTable
             apiBaseUrl={API_BASE_URL}
