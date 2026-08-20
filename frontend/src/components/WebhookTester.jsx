@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-export default function WebhookTester({ apiBaseUrl, lastCreatedRawKey, onWebhookDispatched }) {
+export default function WebhookTester({ apiBaseUrl, selectedKey, rawKey, onWebhookDispatched }) {
   const [targetUrl, setTargetUrl] = useState('https://httpbin.org/post');
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
 
   const handleDispatch = async () => {
-    const rawKey = lastCreatedRawKey || prompt('Enter your raw API key (pg_live_...) to dispatch webhook:');
-    if (!rawKey) return;
+    if (!rawKey) {
+      alert('Please enter or save the raw API key for the selected key to dispatch webhooks.');
+      return;
+    }
 
     setLoading(true);
     setResponse(null);
@@ -23,9 +25,10 @@ export default function WebhookTester({ apiBaseUrl, lastCreatedRawKey, onWebhook
         headers: { 'x-api-key': rawKey }
       });
       setResponse({ status: res.status, data: res.data });
+      
       onWebhookDispatched && onWebhookDispatched({
         timestamp: new Date().toLocaleTimeString(),
-        keyName: 'Active Key',
+        keyName: selectedKey?.name || 'Active Key',
         endpoint: '/v1/webhooks/dispatch',
         status: res.status,
         latency: 'Async Enqueued',
@@ -40,7 +43,14 @@ export default function WebhookTester({ apiBaseUrl, lastCreatedRawKey, onWebhook
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-      <h2 className="text-sm font-bold text-gray-900 mb-1">Trigger Async Webhook</h2>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-bold text-gray-900">Trigger Async Webhook</h2>
+        {selectedKey && (
+          <span className="text-[11px] font-mono text-gray-500">
+            Target: {selectedKey.name}
+          </span>
+        )}
+      </div>
       <p className="text-xs text-gray-500 mb-4">Enqueue a webhook delivery task processed by Redis + ARQ</p>
 
       <div className="space-y-3">
@@ -57,7 +67,7 @@ export default function WebhookTester({ apiBaseUrl, lastCreatedRawKey, onWebhook
 
         <button
           onClick={handleDispatch}
-          disabled={loading}
+          disabled={loading || !selectedKey}
           className="w-full py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition"
         >
           {loading ? 'Enqueuing...' : 'Enqueue Webhook'}

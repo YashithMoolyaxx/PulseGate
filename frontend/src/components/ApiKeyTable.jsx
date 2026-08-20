@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Copy, Check } from 'lucide-react';
 
 export default function ApiKeyTable({ 
   apiBaseUrl, 
@@ -69,7 +69,7 @@ export default function ApiKeyTable({
             <input
               type="text"
               required
-              placeholder="e.g. Mobile App"
+              placeholder="e.g. Mobile App, Backend Service"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs focus:outline-none focus:bg-white focus:border-gray-900"
@@ -117,9 +117,10 @@ export default function ApiKeyTable({
               </code>
               <button
                 onClick={() => handleCopy(createdKey.raw_api_key)}
-                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shrink-0"
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shrink-0 flex items-center gap-1"
               >
-                {copyStatus || 'Copy'}
+                {copyStatus ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copyStatus || 'Copy'}</span>
               </button>
             </div>
           </div>
@@ -129,14 +130,14 @@ export default function ApiKeyTable({
       {/* Active API Keys Table */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <h2 className="text-sm font-bold text-gray-900 mb-1">Active API Keys</h2>
-        <p className="text-xs text-gray-500 mb-4">Keys associated with your account</p>
+        <p className="text-xs text-gray-500 mb-4">Click any row or sidebar item to switch active testing key</p>
 
         <div className="w-full overflow-x-auto rounded-lg border border-gray-200">
           <table className="w-full text-left text-xs min-w-[450px]">
             <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-semibold border-b border-gray-200">
               <tr>
                 <th className="px-3 py-2.5">Name</th>
-                <th className="px-3 py-2.5">Key</th>
+                <th className="px-3 py-2.5">Key Prefix</th>
                 <th className="px-3 py-2.5">Rate Limit</th>
                 <th className="px-3 py-2.5">Created</th>
                 <th className="px-3 py-2.5">Action</th>
@@ -150,28 +151,38 @@ export default function ApiKeyTable({
                   </td>
                 </tr>
               ) : (
-                apiKeys.map((k) => (
-                  <tr 
-                    key={k.id}
-                    onClick={() => onSelectKey && onSelectKey(k)}
-                    className={`hover:bg-gray-50 cursor-pointer ${
-                      selectedKey?.id === k.id ? 'bg-gray-50 font-medium' : ''
-                    }`}
-                  >
-                    <td className="px-3 py-2.5 font-medium text-gray-900">{k.name}</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-500">{k.id.slice(0, 8)}...</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-700">{k.rate_limit_rpm} req/m</td>
-                    <td className="px-3 py-2.5 text-gray-400">{new Date(k.created_at).toLocaleDateString()}</td>
-                    <td className="px-3 py-2.5">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(k.id); }}
-                        className="text-red-500 hover:text-red-700 p-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                apiKeys.map((k) => {
+                  const isSelected = selectedKey?.id === k.id;
+                  return (
+                    <tr 
+                      key={k.id}
+                      onClick={() => onSelectKey && onSelectKey(k)}
+                      className={`hover:bg-gray-50 cursor-pointer transition ${
+                        isSelected ? 'bg-indigo-50/50 font-semibold border-l-2 border-indigo-600' : ''
+                      }`}
+                    >
+                      <td className="px-3 py-2.5 font-medium text-gray-900 flex items-center gap-1.5">
+                        {k.name}
+                        {isSelected && (
+                          <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.2 rounded font-normal">
+                            Active
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-gray-500">{k.id.slice(0, 8)}...</td>
+                      <td className="px-3 py-2.5 font-mono text-gray-700">{k.rate_limit_rpm} req/m</td>
+                      <td className="px-3 py-2.5 text-gray-400">{new Date(k.created_at).toLocaleDateString()}</td>
+                      <td className="px-3 py-2.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(k.id); }}
+                          className="text-red-500 hover:text-red-700 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

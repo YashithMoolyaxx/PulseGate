@@ -16,10 +16,16 @@ export default function App() {
   // App State
   const [apiKeys, setApiKeys] = useState([]);
   const [selectedKey, setSelectedKey] = useState(null);
-  const [lastRawKey, setLastRawKey] = useState('');
+  const [rawKeysMap, setRawKeysMap] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('pulsegate_raw_keys')) || {};
+    } catch {
+      return {};
+    }
+  });
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Metrics
+  // Metrics & Logs
   const [totalRequests, setTotalRequests] = useState(0);
   const [rateLimitHits, setRateLimitHits] = useState(0);
   const [webhooksSent, setWebhooksSent] = useState(0);
@@ -40,6 +46,13 @@ export default function App() {
     localStorage.removeItem('pulsegate_email');
   };
 
+  // Save Raw Key to Map
+  const saveRawKey = (keyId, rawKey) => {
+    const updated = { ...rawKeysMap, [keyId]: rawKey };
+    setRawKeysMap(updated);
+    localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updated));
+  };
+
   // Fetch API Keys
   const fetchKeys = async () => {
     if (!token) return;
@@ -48,7 +61,11 @@ export default function App() {
       const res = await axios.get(`${API_BASE_URL}/v1/api-keys`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setApiKeys(res.data || []);
+      const keys = res.data || [];
+      setApiKeys(keys);
+      if (keys.length > 0 && !selectedKey) {
+        setSelectedKey(keys[0]);
+      }
     } catch (err) {
       console.error('Failed to load keys:', err);
     } finally {
@@ -62,14 +79,20 @@ export default function App() {
     }
   }, [token]);
 
-  // Handlers from components
+  // Key Created Handler
   const handleKeyCreated = (keyData) => {
-    setLastRawKey(keyData.raw_api_key);
+    saveRawKey(keyData.id, keyData.raw_api_key);
     fetchKeys();
+    setSelectedKey(keyData);
   };
 
-  const handleKeyDeleted = () => {
+  // Key Deleted Handler
+  const handleKeyDeleted = (deletedId) => {
     fetchKeys();
+    if (selectedKey?.id === deletedId) {
+      const remaining = apiKeys.filter(k => k.id !== deletedId);
+      setSelectedKey(remaining.length > 0 ? remaining[0] : null);
+    }
   };
 
   const handleLogGenerated = (logEntry) => {
@@ -85,6 +108,9 @@ export default function App() {
     setLogs((prev) => [logEntry, ...prev.slice(0, 9)]);
   };
 
+  // Active raw key for the currently selected key
+  const activeRawKey = selectedKey ? rawKeysMap[selectedKey.id] : '';
+
   // Show Auth View if not logged in
   if (!token) {
     return (
@@ -95,19 +121,24 @@ export default function App() {
     );
   }
 
-  // Dashboard Layout
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-gray-900 font-sans antialiased flex flex-col md:flex-row">
+      {/* Sidebar with clickable project switching list */}
       <Sidebar
         userEmail={userEmail}
+        apiKeys={apiKeys}
+        selectedKey={selectedKey}
+        onSelectKey={setSelectedKey}
+        onDeleteKey={handleKeyDeleted}
         onSync={fetchKeys}
         onLogout={handleLogout}
         isSyncing={isSyncing}
         apiBaseUrl={API_BASE_URL}
       />
 
+      {/* Main Workspace */}
       <main className="flex-1 p-4 sm:p-8 space-y-6 max-w-7xl overflow-x-hidden">
-        {/* Metric Cards */}
+        {/* Metrics Cards */}
         <MetricsCards
           apiKeysCount={apiKeys.length}
           totalRequests={totalRequests}
@@ -115,27 +146,30 @@ export default function App() {
           webhooksSent={webhooksSent}
         />
 
-        {/* Workspace 2-Column Grid */}
+        {/* 2-Column Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ApiKeyTable
             apiBaseUrl={API_BASE_URL}
             token={token}
             apiKeys={apiKeys}
-            onKeyCreated={handleKeyCreated}
-            onKeyDeleted={handleKeyDeleted}
             selectedKey={selectedKey}
             onSelectKey={setSelectedKey}
+            onKeyCreated={handleKeyCreated}
+            onKeyDeleted={handleKeyDeleted}
           />
 
           <div className="space-y-6">
             <ProxyTester
               apiBaseUrl={API_BASE_URL}
-              lastCreatedRawKey={lastRawKey}
+              selectedKey={selectedKey}
+              rawKey={activeRawKey}
+              onSaveRawKey={saveRawKey}
               onLogGenerated={handleLogGenerated}
             />
             <WebhookTester
               apiBaseUrl={API_BASE_URL}
-              lastCreatedRawKey={lastRawKey}
+              selectedKey={selectedKey}
+              rawKey={activeRawKey}
               onWebhookDispatched={handleWebhookDispatched}
             />
           </div>

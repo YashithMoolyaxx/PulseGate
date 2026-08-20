@@ -1,26 +1,30 @@
 import React from 'react';
 import { 
-  LayoutDashboard, 
   Key, 
-  Zap, 
-  Clock, 
+  Plus, 
   RefreshCw, 
   LogOut, 
-  ExternalLink 
+  ExternalLink,
+  Trash2,
+  Zap
 } from 'lucide-react';
 
 export default function Sidebar({ 
   userEmail, 
+  apiKeys = [], 
+  selectedKey, 
+  onSelectKey, 
+  onDeleteKey,
   onSync, 
   onLogout, 
   isSyncing,
   apiBaseUrl 
 }) {
   return (
-    <aside className="w-full md:w-64 bg-gray-900 text-white flex flex-col justify-between border-r border-gray-800 shrink-0 min-h-full p-4 sm:p-5">
-      <div>
-        {/* Brand with ECG Heartbeat Pulse Logo */}
-        <div className="flex items-center gap-3 mb-8">
+    <aside className="w-full md:w-64 bg-gray-900 text-white flex flex-col justify-between border-r border-gray-800 shrink-0 min-h-screen p-4 sm:p-5">
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Brand Header with ECG Pulse Logo */}
+        <div className="flex items-center gap-3 mb-6">
           <div className="h-9 w-9 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center text-white shadow-inner shrink-0">
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -46,40 +50,77 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Navigation Items */}
-        <nav className="space-y-1">
-          <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white">
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Dashboard</span>
-          </button>
+        {/* API Key / Project Switcher (AI Chat History Style) */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex items-center justify-between px-1 mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              API Keys ({apiKeys.length})
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+            {apiKeys.length === 0 ? (
+              <div className="p-3 text-center rounded-lg bg-gray-800/40 border border-gray-800 text-xs text-gray-500">
+                No keys created yet.
+              </div>
+            ) : (
+              apiKeys.map((key) => {
+                const isSelected = selectedKey?.id === key.id;
+                return (
+                  <div
+                    key={key.id}
+                    onClick={() => onSelectKey(key)}
+                    className={`group w-full flex items-center justify-between p-2.5 rounded-lg text-xs cursor-pointer transition border ${
+                      isSelected
+                        ? 'bg-gray-800 border-gray-600 text-white shadow-sm font-semibold'
+                        : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Key className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-emerald-400' : 'text-gray-500'}`} />
+                      <div className="truncate text-left">
+                        <div className="truncate font-medium">{key.name}</div>
+                        <div className="text-[10px] text-gray-500 font-mono">
+                          {key.rate_limit_rpm} req/min
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteKey(key.id);
+                      }}
+                      title="Revoke Key"
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-gray-500 transition shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Swagger Docs Link */}
+        <div className="my-4 pt-3 border-t border-gray-800">
           <a
             href={`${apiBaseUrl}/docs`}
             target="_blank"
             rel="noreferrer"
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition"
           >
-            <ExternalLink className="w-4 h-4" />
-            <span>Swagger Docs</span>
+            <ExternalLink className="w-4 h-4 text-gray-500" />
+            <span>Open OpenAPI / Docs</span>
           </a>
-        </nav>
-
-        {/* Operational Status */}
-        <div className="my-6 p-3 bg-gray-800/60 border border-gray-800 rounded-xl">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] text-gray-400 font-medium">Gateway Core</span>
-            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              Operational
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-500">FastAPI • Redis Token Bucket</p>
         </div>
       </div>
 
-      {/* User Session and Controls */}
+      {/* User Session & Sync */}
       <div className="pt-4 border-t border-gray-800 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-300 truncate max-w-[140px]">
+          <span className="text-xs text-gray-300 truncate max-w-[140px]" title={userEmail}>
             {userEmail || 'Developer'}
           </span>
           <button
