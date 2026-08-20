@@ -12,7 +12,7 @@ export default function Sidebar({
   apiKeys = [], 
   selectedKey, 
   onSelectKey, 
-  onDeleteKey,
+  onDeleteKey, 
   onSync, 
   onLogout, 
   isSyncing,
@@ -48,7 +48,7 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* API Key / Project Switcher List */}
+        {/* API Key Project Switcher (Real User Keys Only) */}
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between px-1 mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
@@ -59,7 +59,7 @@ export default function Sidebar({
           <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
             {apiKeys.length === 0 ? (
               <div className="p-3 text-center rounded-lg bg-gray-800/40 border border-gray-800 text-xs text-gray-500">
-                No keys created yet.
+                No active keys provisioned.
               </div>
             ) : (
               apiKeys.map((key) => {
@@ -87,9 +87,9 @@ export default function Sidebar({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        onDeleteKey(key.id);
+                        onDeleteKey(key.id, key.name);
                       }}
-                      title="Revoke Key"
+                      title="Delete API Key"
                       className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-gray-500 transition shrink-0"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

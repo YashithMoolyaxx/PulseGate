@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
 import MetricsCards from './components/MetricsCards';
@@ -13,7 +14,7 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('pulsegate_token') || '');
   const [userEmail, setUserEmail] = useState(localStorage.getItem('pulsegate_email') || '');
   
-  // App State
+  // Real API Keys State (Only holds real keys from backend)
   const [apiKeys, setApiKeys] = useState([]);
   const [selectedKey, setSelectedKey] = useState(null);
   const [rawKeysMap, setRawKeysMap] = useState(() => {
@@ -25,28 +26,43 @@ export default function App() {
   });
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Metrics & Logs
+  // Toast Notification State
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  // Metrics & Logs State
   const [totalRequests, setTotalRequests] = useState(0);
   const [rateLimitHits, setRateLimitHits] = useState(0);
   const [webhooksSent, setWebhooksSent] = useState(0);
   const [logs, setLogs] = useState([]);
 
-  // Auth Handler
+  // Toast Trigger Helper
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'success' });
+    }, 3500);
+  };
+
+  // Auth Handlers
   const handleAuthSuccess = (accessToken, email) => {
     setToken(accessToken);
     setUserEmail(email);
     localStorage.setItem('pulsegate_token', accessToken);
     localStorage.setItem('pulsegate_email', email);
+    showToast(`Welcome back, ${email}!`, 'success');
   };
 
   const handleLogout = () => {
     setToken('');
     setUserEmail('');
+    setApiKeys([]);
+    setSelectedKey(null);
     localStorage.removeItem('pulsegate_token');
     localStorage.removeItem('pulsegate_email');
+    showToast('Signed out successfully.', 'success');
   };
 
-  // Save Raw Key to Map
+  // Save Raw Key Secret to Local Storage
   const saveRawKey = (keyId, rawKey) => {
     if (!keyId || !rawKey) return;
     const updated = { ...rawKeysMap, [keyId]: rawKey };
@@ -54,7 +70,7 @@ export default function App() {
     localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updated));
   };
 
-  // Fetch API Keys
+  // Fetch API Keys from Backend
   const fetchKeys = async () => {
     if (!token) return;
     setIsSyncing(true);
@@ -62,10 +78,14 @@ export default function App() {
       const res = await axios.get(`${API_BASE_URL}/v1/api-keys`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const keys = res.data || [];
-      setApiKeys(keys);
-      if (keys.length > 0 && !selectedKey) {
-        setSelectedKey(keys[0]);
+      const fetchedKeys = res.data || [];
+      setApiKeys(fetchedKeys);
+      
+      // Auto-select first key if none currently selected
+      if (fetchedKeys.length > 0 && !selectedKey) {
+        setSelectedKey(fetchedKeys[0]);
+      } else if (fetchedKeys.length === 0) {
+        setSelectedKey(null);
       }
     } catch (err) {
       console.error('Failed to load keys:', err);
@@ -85,14 +105,38 @@ export default function App() {
     saveRawKey(keyData.id, keyData.raw_api_key);
     fetchKeys();
     setSelectedKey(keyData);
+    showToast(`API Key "${keyData.name}" created successfully!`, 'success');
   };
 
-  // Key Deleted Handler
-  const handleKeyDeleted = (deletedId) => {
-    fetchKeys();
-    if (selectedKey?.id === deletedId) {
-      const remaining = apiKeys.filter(k => k.id !== deletedId);
-      setSelectedKey(remaining.length > 0 ? remaining[0] : null);
+  // Delete API Key Handler (Calls backend DELETE and clears cache)
+  const handleDeleteKey = async (keyId, keyName) => {
+    if (!confirm(`Are you sure you want to revoke API key "${keyName || 'this key'}"?`)) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE_URL}/v1/api-keys/${keyId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Update local keys list immediately
+      const remainingKeys = apiKeys.filter((k) => k.id !== keyId);
+      setApiKeys(remainingKeys);
+
+      // Clean up cached raw key in local storage
+      const updatedRawMap = { ...rawKeysMap };
+      delete updatedRawMap[keyId];
+      setRawKeysMap(updatedRawMap);
+      localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updatedRawMap));
+
+      // Handle active key selection fallback
+      if (selectedKey?.id === keyId) {
+        setSelectedKey(remainingKeys.length > 0 ? remainingKeys[0] : null);
+      }
+
+      showToast(`API Key "${keyName || 'Key'}" deleted successfully.`, 'success');
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Failed to delete API key', 'error');
     }
   };
 
@@ -109,7 +153,7 @@ export default function App() {
     setLogs((prev) => [logEntry, ...prev.slice(0, 9)]);
   };
 
-  // Active raw key for the currently selected key
+  // Active raw key for the selected key
   const activeRawKey = selectedKey ? (rawKeysMap[selectedKey.id] || '') : '';
 
   // Auth Screen
@@ -123,14 +167,33 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f4f6] text-gray-900 font-sans antialiased flex flex-col md:flex-row">
-      {/* Sidebar with Key Switching */}
+    <div className="min-h-screen bg-[#f3f4f6] text-gray-900 font-sans antialiased flex flex-col md:flex-row relative">
+      
+      {/* Toast Notification Banner */}
+      {toast.show && (
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border bg-white animate-in slide-in-from-top-2 duration-200">
+          {toast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+          )}
+          <span className="text-xs font-semibold text-gray-800">{toast.message}</span>
+          <button 
+            onClick={() => setToast({ show: false, message: '', type: 'success' })}
+            className="ml-2 text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Sidebar with Key Switching & Delete Action */}
       <Sidebar
         userEmail={userEmail}
         apiKeys={apiKeys}
         selectedKey={selectedKey}
         onSelectKey={setSelectedKey}
-        onDeleteKey={handleKeyDeleted}
+        onDeleteKey={handleDeleteKey}
         onSync={fetchKeys}
         onLogout={handleLogout}
         isSyncing={isSyncing}
@@ -155,7 +218,7 @@ export default function App() {
             selectedKey={selectedKey}
             onSelectKey={setSelectedKey}
             onKeyCreated={handleKeyCreated}
-            onKeyDeleted={handleKeyDeleted}
+            onDeleteKey={handleDeleteKey}
           />
 
           <div className="space-y-6">
@@ -179,7 +242,7 @@ export default function App() {
         {/* Live Logs Table */}
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
           <h2 className="text-sm font-bold text-gray-900 mb-1">Recent Gateway Logs</h2>
-          <p className="text-xs text-gray-500 mb-4">Real-time log stream from reverse proxy and webhooks</p>
+          <p className="text-xs text-gray-500 mb-4">Real-time telemetry stream from reverse proxy and webhooks</p>
 
           <div className="w-full overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full text-left text-xs min-w-[550px]">
@@ -196,7 +259,7 @@ export default function App() {
                 {logs.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="px-4 py-6 text-center text-gray-400 font-sans">
-                      No logs captured yet. Send a request to see live telemetry.
+                      No logs captured yet. Fire a request to stream live telemetry.
                     </td>
                   </tr>
                 ) : (

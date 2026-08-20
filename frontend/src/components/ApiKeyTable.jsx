@@ -6,10 +6,10 @@ export default function ApiKeyTable({
   apiBaseUrl, 
   token, 
   apiKeys = [], 
-  onKeyCreated, 
-  onKeyDeleted, 
   selectedKey, 
-  onSelectKey 
+  onSelectKey, 
+  onKeyCreated, 
+  onDeleteKey 
 }) {
   const [name, setName] = useState('');
   const [rpm, setRpm] = useState(60);
@@ -24,7 +24,7 @@ export default function ApiKeyTable({
     try {
       const res = await axios.post(
         `${apiBaseUrl}/v1/api-keys`,
-        { name, rate_limit_rpm: Number(rpm) },
+        { name: name.trim(), rate_limit_rpm: Number(rpm) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCreatedKey(res.data);
@@ -35,18 +35,6 @@ export default function ApiKeyTable({
       alert(err.response?.data?.detail || 'Failed to create API key');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to revoke this API key?')) return;
-    try {
-      await axios.delete(`${apiBaseUrl}/v1/api-keys/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      onKeyDeleted(id);
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to delete API key');
     }
   };
 
@@ -69,7 +57,7 @@ export default function ApiKeyTable({
             <input
               type="text"
               required
-              placeholder="e.g. Mobile App, Backend Service"
+              placeholder="e.g. Mobile App, Payment Service"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs focus:outline-none focus:bg-white focus:border-gray-900"
@@ -97,7 +85,7 @@ export default function ApiKeyTable({
           </button>
         </form>
 
-        {/* Newly Generated Key Banner */}
+        {/* Newly Generated Key Alert Banner */}
         {createdKey && (
           <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900">
             <div className="flex items-center justify-between mb-1">
@@ -127,7 +115,7 @@ export default function ApiKeyTable({
         )}
       </div>
 
-      {/* Active API Keys Table */}
+      {/* Active API Keys Table (Real Keys Only) */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <h2 className="text-sm font-bold text-gray-900 mb-1">Active API Keys</h2>
         <p className="text-xs text-gray-500 mb-4">Click any row or sidebar item to switch active testing key</p>
@@ -147,7 +135,7 @@ export default function ApiKeyTable({
               {apiKeys.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="px-3 py-6 text-center text-gray-400">
-                    No active keys found.
+                    No active API keys found. Provision one above to get started.
                   </td>
                 </tr>
               ) : (
@@ -174,8 +162,12 @@ export default function ApiKeyTable({
                       <td className="px-3 py-2.5 text-gray-400">{new Date(k.created_at).toLocaleDateString()}</td>
                       <td className="px-3 py-2.5">
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(k.id); }}
-                          className="text-red-500 hover:text-red-700 p-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteKey(k.id, k.name);
+                          }}
+                          title="Delete API Key"
+                          className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
