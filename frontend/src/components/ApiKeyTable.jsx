@@ -1,97 +1,182 @@
 import React, { useState } from 'react';
-import { Key, Copy, Check, Plus, AlertCircle } from 'lucide-react';
+import axios from 'axios';
+import { Trash2 } from 'lucide-react';
 
-export default function ApiKeyTable({ onKeyCreated, generatedKey, setGeneratedKey }) {
-  const [keyName, setKeyName] = useState('');
-  const [rateLimit, setRateLimit] = useState(60);
+export default function ApiKeyTable({ 
+  apiBaseUrl, 
+  token, 
+  apiKeys = [], 
+  onKeyCreated, 
+  onKeyDeleted, 
+  selectedKey, 
+  onSelectKey 
+}) {
+  const [name, setName] = useState('');
+  const [rpm, setRpm] = useState(60);
+  const [createdKey, setCreatedKey] = useState(null);
+  const [copyStatus, setCopyStatus] = useState('');
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleCreate = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!name.trim()) return;
     setLoading(true);
-    setError('');
     try {
-      const res = await fetch('http://localhost:8000/v1/api-keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: keyName, rate_limit_rpm: Number(rateLimit) }),
-      });
-      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-      const data = await res.json();
-      setGeneratedKey(data);
-      setKeyName('');
-      if (onKeyCreated) onKeyCreated(data);
+      const res = await axios.post(
+        `${apiBaseUrl}/v1/api-keys`,
+        { name, rate_limit_rpm: Number(rpm) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCreatedKey(res.data);
+      setName('');
+      setRpm(60);
+      onKeyCreated(res.data);
     } catch (err) {
-      setError(err.message);
+      alert(err.response?.data?.detail || 'Failed to create API key');
     } finally {
       setLoading(false);
     }
   };
 
-  const copyToClipboard = (text) => {
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to revoke this API key?')) return;
+    try {
+      await axios.delete(`${apiBaseUrl}/v1/api-keys/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      onKeyDeleted(id);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to delete API key');
+    }
+  };
+
+  const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopyStatus('Copied!');
+    setTimeout(() => setCopyStatus(''), 2000);
   };
 
   return (
-    <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-6 mb-8 backdrop-blur">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-cyan-400">
-        <Key className="w-5 h-5" /> API Key Management
-      </h2>
+    <div className="space-y-6">
+      {/* Provision API Key Form */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <h2 className="text-sm font-bold text-gray-900 mb-1">Provision API Key</h2>
+        <p className="text-xs text-gray-500 mb-4">Create a new key with custom rate limits</p>
 
-      <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Service / App Name (e.g. Mobile App)"
-          required
-          value={keyName}
-          onChange={(e) => setKeyName(e.target.value)}
-          className="bg-gray-950 border border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
-        />
-        <input
-          type="number"
-          placeholder="Rate Limit (RPM)"
-          required
-          min="1"
-          value={rateLimit}
-          onChange={(e) => setRateLimit(e.target.value)}
-          className="bg-gray-950 border border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition"
-        >
-          <Plus className="w-4 h-4" /> {loading ? 'Provisioning...' : 'Generate Secret Key'}
-        </button>
-      </form>
-
-      {error && (
-        <div className="p-3 mb-4 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-lg text-sm flex items-center gap-2">
-          <AlertCircle className="w-4 h-4" /> {error}
-        </div>
-      )}
-
-      {generatedKey && (
-        <div className="p-4 bg-gray-950 border border-cyan-500/40 rounded-xl">
-          <div className="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-1">
-            ⚠️ Save this raw secret key — shown only once:
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Key Name</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Mobile App"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs focus:outline-none focus:bg-white focus:border-gray-900"
+            />
           </div>
-          <div className="flex items-center justify-between bg-gray-900 border border-gray-800 p-3 rounded-lg font-mono text-sm text-gray-200">
-            <span className="truncate mr-4 text-emerald-400">{generatedKey.raw_api_key}</span>
-            <button
-              onClick={() => copyToClipboard(generatedKey.raw_api_key)}
-              className="flex items-center gap-1.5 px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? 'Copied' : 'Copy'}
-            </button>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Rate Limit (req/min)</label>
+            <input
+              type="number"
+              min="1"
+              required
+              value={rpm}
+              onChange={(e) => setRpm(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs focus:outline-none focus:bg-white focus:border-gray-900"
+            />
           </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition"
+          >
+            {loading ? 'Creating...' : 'Create API Key'}
+          </button>
+        </form>
+
+        {/* Newly Generated Key Banner */}
+        {createdKey && (
+          <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+                Save Your Key
+              </span>
+              <button 
+                onClick={() => setCreatedKey(null)}
+                className="text-xs text-emerald-700 hover:text-emerald-900"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <code className="text-xs font-mono font-bold text-emerald-700 select-all break-all flex-1">
+                {createdKey.raw_api_key}
+              </code>
+              <button
+                onClick={() => handleCopy(createdKey.raw_api_key)}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shrink-0"
+              >
+                {copyStatus || 'Copy'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Active API Keys Table */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <h2 className="text-sm font-bold text-gray-900 mb-1">Active API Keys</h2>
+        <p className="text-xs text-gray-500 mb-4">Keys associated with your account</p>
+
+        <div className="w-full overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-left text-xs min-w-[450px]">
+            <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-semibold border-b border-gray-200">
+              <tr>
+                <th className="px-3 py-2.5">Name</th>
+                <th className="px-3 py-2.5">Key</th>
+                <th className="px-3 py-2.5">Rate Limit</th>
+                <th className="px-3 py-2.5">Created</th>
+                <th className="px-3 py-2.5">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {apiKeys.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-3 py-6 text-center text-gray-400">
+                    No active keys found.
+                  </td>
+                </tr>
+              ) : (
+                apiKeys.map((k) => (
+                  <tr 
+                    key={k.id}
+                    onClick={() => onSelectKey && onSelectKey(k)}
+                    className={`hover:bg-gray-50 cursor-pointer ${
+                      selectedKey?.id === k.id ? 'bg-gray-50 font-medium' : ''
+                    }`}
+                  >
+                    <td className="px-3 py-2.5 font-medium text-gray-900">{k.name}</td>
+                    <td className="px-3 py-2.5 font-mono text-gray-500">{k.id.slice(0, 8)}...</td>
+                    <td className="px-3 py-2.5 font-mono text-gray-700">{k.rate_limit_rpm} req/m</td>
+                    <td className="px-3 py-2.5 text-gray-400">{new Date(k.created_at).toLocaleDateString()}</td>
+                    <td className="px-3 py-2.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(k.id); }}
+                        className="text-red-500 hover:text-red-700 p-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }

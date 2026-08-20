@@ -1,103 +1,81 @@
 import React, { useState } from 'react';
-import { Send, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import axios from 'axios';
 
-export default function ProxyTester({ apiBaseUrl = 'http://localhost:8000', defaultApiKey, onProxyFired }) {
-  const [apiKey, setApiKey] = useState(defaultApiKey || '');
+export default function ProxyTester({ apiBaseUrl, lastCreatedRawKey, onLogGenerated }) {
   const [path, setPath] = useState('get');
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
-  const [latency, setLatency] = useState(null);
-
-  React.useEffect(() => {
-    if (defaultApiKey) setApiKey(defaultApiKey);
-  }, [defaultApiKey]);
 
   const handleTest = async () => {
+    const rawKey = lastCreatedRawKey || prompt('Enter your raw API key (pg_live_...) to send request:');
+    if (!rawKey) return;
+
     setLoading(true);
     setResponse(null);
     const start = performance.now();
 
     try {
-      const res = await fetch(`${apiBaseUrl}/v1/proxy/${path}`, {
-        method: 'GET',
-        headers: { 'x-api-key': apiKey },
+      const res = await axios.get(`${apiBaseUrl}/v1/proxy/${path}`, {
+        headers: { 'x-api-key': rawKey }
       });
-      const duration = Math.round(performance.now() - start);
-      setLatency(duration);
-      const data = await res.json();
-      setResponse({ status: res.status, ok: res.ok, data });
-      if (onProxyFired) onProxyFired();
+      const latency = Math.round(performance.now() - start);
+      setResponse({ status: res.status, data: res.data });
+      onLogGenerated && onLogGenerated({
+        timestamp: new Date().toLocaleTimeString(),
+        keyName: 'Active Key',
+        endpoint: `/v1/proxy/${path}`,
+        status: res.status,
+        latency: `${latency}ms`,
+        isRateLimit: false,
+      });
     } catch (err) {
-      setResponse({ status: 500, ok: false, data: { error: err.message } });
+      const status = err.response?.status || 500;
+      const latency = Math.round(performance.now() - start);
+      setResponse({ status, data: err.response?.data || { error: err.message } });
+      onLogGenerated && onLogGenerated({
+        timestamp: new Date().toLocaleTimeString(),
+        keyName: 'Active Key',
+        endpoint: `/v1/proxy/${path}`,
+        status,
+        latency: `${latency}ms`,
+        isRateLimit: status === 429,
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 mb-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
-            <Send className="w-4 h-4 text-blue-600" /> Gateway Proxy & Rate Limit Tester
-          </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">Test real-time reverse proxy routing and sliding-window limits</p>
-        </div>
-        <span className="text-xs text-zinc-500 font-mono bg-zinc-100 px-2.5 py-1 rounded-lg border border-zinc-200">
-          GET /v1/proxy/{'{path}'}
-        </span>
-      </div>
+    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+      <h2 className="text-sm font-bold text-gray-900 mb-1">Test Rate Limiter</h2>
+      <p className="text-xs text-gray-500 mb-4">Send requests through the reverse proxy to test limits</p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-4">
-        <div className="sm:col-span-6">
-          <input
-            type="text"
-            placeholder="X-API-Key (pg_live_...)"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-zinc-900 font-mono"
-          />
-        </div>
-        <div className="sm:col-span-3">
-          <input
-            type="text"
-            placeholder="Path (e.g. get)"
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-zinc-900 font-mono"
-          />
-        </div>
-        <div className="sm:col-span-3">
-          <button
-            onClick={handleTest}
-            disabled={loading || !apiKey}
-            className="w-full h-full bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs transition shadow-sm"
-          >
-            {loading ? 'Proxying...' : 'Fire Request'}
-          </button>
-        </div>
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          readOnly
+          value={`GET /v1/proxy/${path}`}
+          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs font-mono text-gray-700"
+        />
+        <button
+          onClick={handleTest}
+          disabled={loading}
+          className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition whitespace-nowrap"
+        >
+          {loading ? 'Sending...' : 'Send Request'}
+        </button>
       </div>
 
       {response && (
-        <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-4 font-mono text-xs text-zinc-200 shadow-inner">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800">
-            <div className="flex items-center gap-2">
-              {response.ok ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <XCircle className="w-4 h-4 text-rose-400" />
-              )}
-              <span className={response.ok ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
-                HTTP {response.status}
-              </span>
-            </div>
-            {latency !== null && (
-              <div className="flex items-center gap-1 text-zinc-400 text-xs">
-                <Clock className="w-3.5 h-3.5" /> {latency} ms
-              </div>
-            )}
+        <div className="p-3 bg-gray-900 rounded-lg font-mono text-xs text-white overflow-hidden">
+          <div className="flex justify-between items-center mb-2 pb-2 border-b border-gray-800">
+            <span className={`font-bold ${response.status === 200 ? 'text-emerald-400' : 'text-red-400'}`}>
+              HTTP {response.status}
+            </span>
           </div>
-          <pre className="text-zinc-300 text-xs overflow-x-auto">{JSON.stringify(response.data, null, 2)}</pre>
+          <pre className="text-[11px] text-gray-300 overflow-x-auto max-h-36">
+            {JSON.stringify(response.data, null, 2)}
+          </pre>
         </div>
       )}
     </div>
