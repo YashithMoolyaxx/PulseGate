@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Zap, Clock, Terminal } from 'lucide-react';
 
-export default function ProxyTester({ 
-  apiBaseUrl, 
-  selectedKey, 
-  rawKey, 
-  onSaveRawKey, 
-  onLogGenerated 
+export default function ProxyTester({
+  apiBaseUrl,
+  selectedKey,
+  rawKey,
+  onSaveRawKey,
+  onLogGenerated,
 }) {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [proxyPath, setProxyPath] = useState('get');
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
 
-  // Sync apiKeyInput whenever rawKey or selectedKey changes
+  // Sync API key input whenever rawKey or selectedKey changes
   useEffect(() => {
     if (rawKey) {
       setApiKeyInput(rawKey);
@@ -24,55 +25,59 @@ export default function ProxyTester({
 
   const handleTest = async () => {
     if (!apiKeyInput.trim()) {
-      alert('Please enter or paste your API key (pg_live_...) to send a request.');
+      alert('Please provide an API Key (pg_live_...) to test the proxy gateway.');
       return;
     }
 
     setLoading(true);
     setResponse(null);
     const start = performance.now();
-
-    // Clean up proxy path (remove leading slash if user added it)
-    const cleanPath = proxyPath.replace(/^\/+/, '');
+    const cleanPath = proxyPath.trim().replace(/^\/+/, '') || 'get';
 
     try {
       const res = await axios.get(`${apiBaseUrl}/v1/proxy/${cleanPath}`, {
-        headers: { 'x-api-key': apiKeyInput.trim() }
+        headers: { 'x-api-key': apiKeyInput.trim() },
       });
       const latency = Math.round(performance.now() - start);
 
-      setResponse({ status: res.status, data: res.data });
+      setResponse({
+        status: res.status,
+        latency,
+        data: res.data,
+      });
 
-      // Save key into browser storage if it was manually entered
       if (selectedKey && onSaveRawKey) {
         onSaveRawKey(selectedKey.id, apiKeyInput.trim());
       }
 
-      onLogGenerated && onLogGenerated({
-        timestamp: new Date().toLocaleTimeString(),
-        keyName: selectedKey?.name || 'Manual Key',
-        endpoint: `/v1/proxy/${cleanPath}`,
-        status: res.status,
-        latency: `${latency}ms`,
-        isRateLimit: false,
-      });
+      onLogGenerated &&
+        onLogGenerated({
+          timestamp: new Date().toLocaleTimeString(),
+          keyName: selectedKey?.name || 'Manual Key',
+          endpoint: `/v1/proxy/${cleanPath}`,
+          status: res.status,
+          latency: `${latency}ms`,
+          isRateLimit: false,
+        });
     } catch (err) {
       const status = err.response?.status || 500;
       const latency = Math.round(performance.now() - start);
 
-      setResponse({ 
-        status, 
-        data: err.response?.data || { error: err.message } 
+      setResponse({
+        status,
+        latency,
+        data: err.response?.data || { error: err.message },
       });
 
-      onLogGenerated && onLogGenerated({
-        timestamp: new Date().toLocaleTimeString(),
-        keyName: selectedKey?.name || 'Manual Key',
-        endpoint: `/v1/proxy/${cleanPath}`,
-        status,
-        latency: `${latency}ms`,
-        isRateLimit: status === 429,
-      });
+      onLogGenerated &&
+        onLogGenerated({
+          timestamp: new Date().toLocaleTimeString(),
+          keyName: selectedKey?.name || 'Manual Key',
+          endpoint: `/v1/proxy/${cleanPath}`,
+          status,
+          latency: `${latency}ms`,
+          isRateLimit: status === 429,
+        });
     } finally {
       setLoading(false);
     }
@@ -80,76 +85,93 @@ export default function ProxyTester({
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-bold text-gray-900">Test Rate Limiter</h2>
-        {selectedKey && (
-          <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded font-mono font-semibold">
-            {selectedKey.name} ({selectedKey.rate_limit_rpm} req/m)
-          </span>
-        )}
+      {/* Header & Endpoint Pill */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+        <h2 className="text-sm font-bold text-gray-900">
+          Gateway Proxy & Rate Limit Tester
+        </h2>
+        <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200">
+          GET /v1/proxy/{'{path}'}
+        </span>
       </div>
       <p className="text-xs text-gray-500 mb-4">
-        Send requests through the reverse proxy to test token bucket limits
+        Test real-time reverse proxy routing and sliding-window limits
       </p>
 
-      {/* API Key Input Field */}
+      {/* Input Controls */}
       <div className="space-y-3 mb-4">
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-semibold text-gray-700">
               API Key
             </label>
-            {selectedKey && !rawKey && (
-              <span className="text-[10px] text-amber-600 font-medium">
-                Enter key to test "{selectedKey.name}"
+            {selectedKey && (
+              <span className="text-[10px] text-indigo-600 font-mono">
+                Active: {selectedKey.name} ({selectedKey.rate_limit_rpm} req/m)
               </span>
             )}
           </div>
           <input
             type="text"
-            placeholder="Paste your raw key (pg_live_...)"
+            placeholder="Paste raw key (pg_live_...)"
             value={apiKeyInput}
             onChange={(e) => setApiKeyInput(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs font-mono focus:outline-none focus:bg-white focus:border-gray-900"
+            className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs font-mono text-gray-900 focus:outline-none focus:bg-white focus:border-gray-900"
           />
         </div>
 
-        {/* Endpoint Path & Send Action */}
         <div>
           <label className="block text-xs font-semibold text-gray-700 mb-1">
-            Proxy Path
+            Path
           </label>
           <div className="flex gap-2">
             <div className="flex-1 flex items-center bg-gray-50 border border-gray-300 rounded-lg overflow-hidden px-3 py-2">
-              <span className="text-xs text-gray-400 font-mono select-none">GET /v1/proxy/</span>
+              <span className="text-xs text-gray-400 font-mono select-none">
+                /v1/proxy/
+              </span>
               <input
                 type="text"
                 value={proxyPath}
                 onChange={(e) => setProxyPath(e.target.value)}
                 placeholder="get"
-                className="flex-1 bg-transparent text-xs font-mono text-gray-800 focus:outline-none ml-1"
+                className="flex-1 bg-transparent text-xs font-mono text-gray-900 focus:outline-none ml-1"
               />
             </div>
             <button
               onClick={handleTest}
               disabled={loading}
-              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition whitespace-nowrap"
+              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition whitespace-nowrap flex items-center gap-1.5"
             >
-              {loading ? 'Sending...' : 'Send Request'}
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span>{loading ? 'Firing...' : 'Fire Request'}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Terminal Response Output */}
+      {/* Response Terminal */}
       {response && (
-        <div className="p-3 bg-gray-900 rounded-lg font-mono text-xs text-white overflow-hidden">
-          <div className="flex justify-between items-center mb-2 pb-2 border-b border-gray-800">
-            <span className={`font-bold ${response.status === 200 ? 'text-emerald-400' : 'text-red-400'}`}>
-              HTTP {response.status}
-            </span>
+        <div className="p-3.5 bg-gray-900 rounded-lg font-mono text-xs text-white overflow-hidden shadow-inner">
+          <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-gray-800">
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  response.status === 200
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : response.status === 429
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                }`}
+              >
+                HTTP {response.status}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-gray-400">
+              <Clock className="w-3 h-3 text-gray-400" />
+              <span>{response.latency} ms</span>
+            </div>
           </div>
-          <pre className="text-[11px] text-gray-300 overflow-x-auto max-h-36">
+          <pre className="text-[11px] text-gray-300 overflow-x-auto max-h-48 leading-relaxed">
             {JSON.stringify(response.data, null, 2)}
           </pre>
         </div>
