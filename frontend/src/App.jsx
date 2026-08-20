@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X, Menu } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
 import MetricsCards from './components/MetricsCards';
@@ -14,7 +14,7 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('pulsegate_token') || '');
   const [userEmail, setUserEmail] = useState(localStorage.getItem('pulsegate_email') || '');
   
-  // Real API Keys ONLY (Strict empty array default)
+  // Real API Keys State
   const [apiKeys, setApiKeys] = useState([]);
   const [selectedKey, setSelectedKey] = useState(null);
   const [rawKeysMap, setRawKeysMap] = useState(() => {
@@ -25,6 +25,7 @@ export default function App() {
     }
   });
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Floating Toast Notification
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -71,7 +72,7 @@ export default function App() {
     localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updated));
   };
 
-  // Fetch only real provisioned keys from Backend DB
+  // Fetch only real provisioned keys from Backend
   const fetchKeys = async () => {
     if (!token) return;
     setIsSyncing(true);
@@ -110,7 +111,7 @@ export default function App() {
     showToast(`API Key "${keyData.name}" created!`, 'success');
   };
 
-  // Delete API Key Handler
+  // Delete API Key Handler (Handles backend deletion + auto-cleans stale/404 ghost keys)
   const handleDeleteKey = async (keyId, keyName) => {
     if (!confirm(`Are you sure you want to revoke API key "${keyName || 'this key'}"?`)) {
       return;
@@ -120,25 +121,29 @@ export default function App() {
       await axios.delete(`${API_BASE_URL}/v1/api-keys/${keyId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      // Remove from state
-      const remainingKeys = apiKeys.filter((k) => k.id !== keyId);
-      setApiKeys(remainingKeys);
-
-      // Clean cached raw key
-      const updatedRawMap = { ...rawKeysMap };
-      delete updatedRawMap[keyId];
-      setRawKeysMap(updatedRawMap);
-      localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updatedRawMap));
-
-      // Active key fallback
-      if (selectedKey?.id === keyId) {
-        setSelectedKey(remainingKeys.length > 0 ? remainingKeys[0] : null);
-      }
-
       showToast(`API Key "${keyName || 'Key'}" deleted successfully.`, 'success');
     } catch (err) {
-      showToast(err.response?.data?.detail || 'Failed to delete API key', 'error');
+      // If 404, it means the key was already removed from the DB (ghost key).
+      // We still clear it from the UI so the user isn't stuck.
+      if (err.response?.status === 404) {
+        showToast(`Stale API key "${keyName || 'Key'}" removed from dashboard.`, 'success');
+      } else {
+        showToast(err.response?.data?.detail || 'Failed to delete API key', 'error');
+        return;
+      }
+    }
+
+    // Remove from UI state and localStorage cache
+    const remainingKeys = apiKeys.filter((k) => k.id !== keyId);
+    setApiKeys(remainingKeys);
+
+    const updatedRawMap = { ...rawKeysMap };
+    delete updatedRawMap[keyId];
+    setRawKeysMap(updatedRawMap);
+    localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updatedRawMap));
+
+    if (selectedKey?.id === keyId) {
+      setSelectedKey(remainingKeys.length > 0 ? remainingKeys[0] : null);
     }
   };
 
@@ -169,7 +174,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-gray-900 font-sans antialiased flex flex-col md:flex-row relative">
       
-      {/* Toast Notification */}
+      {/* Toast Notification Banner */}
       {toast.show && (
         <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border bg-white animate-in slide-in-from-top-2 duration-200">
           {toast.type === 'success' ? (
@@ -187,6 +192,31 @@ export default function App() {
         </div>
       )}
 
+      {/* Mobile Top Navbar with Hamburger Icon */}
+      <header className="md:hidden bg-gray-900 text-white px-4 py-3 flex items-center justify-between border-b border-gray-800 sticky top-0 z-30">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsMobileNavOpen(true)}
+            className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-white transition focus:outline-none"
+            aria-label="Open Navigation"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm">PulseGate</span>
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded font-semibold">
+              Live
+            </span>
+          </div>
+        </div>
+        {selectedKey && (
+          <span className="text-[11px] font-mono text-gray-400 truncate max-w-[120px]">
+            {selectedKey.name}
+          </span>
+        )}
+      </header>
+
+      {/* Sidebar Drawer */}
       <Sidebar
         userEmail={userEmail}
         apiKeys={apiKeys}
@@ -196,9 +226,11 @@ export default function App() {
         onSync={fetchKeys}
         onLogout={handleLogout}
         isSyncing={isSyncing}
-        apiBaseUrl={API_BASE_URL}
+        isOpenMobile={isMobileNavOpen}
+        onCloseMobile={() => setIsMobileNavOpen(false)}
       />
 
+      {/* Main Workspace */}
       <main className="flex-1 p-4 sm:p-8 space-y-6 max-w-7xl overflow-x-hidden">
         <MetricsCards
           apiKeysCount={apiKeys.length}
