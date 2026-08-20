@@ -48,6 +48,7 @@ export default function App() {
 
   // Save Raw Key to Map
   const saveRawKey = (keyId, rawKey) => {
+    if (!keyId || !rawKey) return;
     const updated = { ...rawKeysMap, [keyId]: rawKey };
     setRawKeysMap(updated);
     localStorage.setItem('pulsegate_raw_keys', JSON.stringify(updated));
@@ -109,9 +110,9 @@ export default function App() {
   };
 
   // Active raw key for the currently selected key
-  const activeRawKey = selectedKey ? rawKeysMap[selectedKey.id] : '';
+  const activeRawKey = selectedKey ? (rawKeysMap[selectedKey.id] || '') : '';
 
-  // Show Auth View if not logged in
+  // Auth Screen
   if (!token) {
     return (
       <AuthModal
@@ -123,7 +124,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-gray-900 font-sans antialiased flex flex-col md:flex-row">
-      {/* Sidebar with clickable project switching list */}
+      {/* Sidebar with Key Switching */}
       <Sidebar
         userEmail={userEmail}
         apiKeys={apiKeys}
@@ -138,7 +139,6 @@ export default function App() {
 
       {/* Main Workspace */}
       <main className="flex-1 p-4 sm:p-8 space-y-6 max-w-7xl overflow-x-hidden">
-        {/* Metrics Cards */}
         <MetricsCards
           apiKeysCount={apiKeys.length}
           totalRequests={totalRequests}
@@ -170,6 +170,7 @@ export default function App() {
               apiBaseUrl={API_BASE_URL}
               selectedKey={selectedKey}
               rawKey={activeRawKey}
+              onSaveRawKey={saveRawKey}
               onWebhookDispatched={handleWebhookDispatched}
             />
           </div>

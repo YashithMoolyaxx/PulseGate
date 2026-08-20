@@ -1,12 +1,10 @@
 import React from 'react';
 import { 
   Key, 
-  Plus, 
   RefreshCw, 
   LogOut, 
   ExternalLink,
-  Trash2,
-  Zap
+  Trash2
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -50,7 +48,7 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* API Key / Project Switcher (AI Chat History Style) */}
+        {/* API Key / Project Switcher List */}
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between px-1 mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
@@ -103,7 +101,7 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Swagger Docs Link */}
+        {/* Swagger OpenAPI Docs Link */}
         <div className="my-4 pt-3 border-t border-gray-800">
           <a
             href={`${apiBaseUrl}/docs`}
@@ -117,7 +115,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* User Session & Sync */}
+      {/* User Session & Sync Actions */}
       <div className="pt-4 border-t border-gray-800 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-300 truncate max-w-[140px]" title={userEmail}>
