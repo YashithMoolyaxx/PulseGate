@@ -9,3 +9,6 @@ redis_data/
 .vscode/
 .idea/
 .DS_Store
+
+node_modules
+dist
