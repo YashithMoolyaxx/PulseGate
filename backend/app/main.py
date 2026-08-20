@@ -7,7 +7,6 @@ from app.api.v1.router import api_router
 from app.core.database import engine, Base
 from app.middleware.metrics_middleware import PrometheusMetricsMiddleware
 
-# Import models so Base.metadata knows about them on startup
 import app.models.user
 import app.models.api_key
 import app.models.log
@@ -28,10 +27,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Custom Prometheus latency & request counting middleware
+# 1. Prometheus Telemetry Middleware (Inner)
 app.add_middleware(PrometheusMetricsMiddleware)
 
-# Outermost Middleware: CORS (Allows credentials with explicit Vercel and local origins)
+# 2. CORS Middleware (Outermost - Must be added LAST to execute FIRST on incoming preflight OPTIONS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -41,7 +40,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:5173",
     ],
-    allow_origin_regex=r"https://.*\.vercel\.app",  # Matches all Vercel production & preview deployments
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
