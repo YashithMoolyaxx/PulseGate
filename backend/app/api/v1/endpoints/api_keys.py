@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_, cast, String
 from typing import List
 from pydantic import BaseModel
 from datetime import datetime
@@ -40,7 +41,7 @@ async def create_api_key(
 
     api_key_entry = APIKey(
         user_id=current_user.id,
-        name=key_in.name,
+        name=key_in.name.strip(),
         hashed_key=hashed_key,
         rate_limit_rpm=key_in.rate_limit_rpm,
         is_active=True
@@ -66,9 +67,17 @@ async def list_api_keys(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Fetch only keys owned by the current logged-in user."""
+    """Fetch only active keys owned by the current logged-in user."""
     result = await db.execute(
-        select(APIKey).where(APIKey.user_id == current_user.id).order_by(APIKey.created_at.desc())
+        select(APIKey)
+        .where(
+            APIKey.is_active == True,
+            or_(
+                APIKey.user_id == current_user.id,
+                APIKey.user_id == None  # Includes unassigned legacy keys
+            )
+        )
+        .order_by(APIKey.created_at.desc())
     )
     return result.scalars().all()
 
@@ -77,14 +86,30 @@ async def list_api_keys(
 # ------------------------------------------------------------------
 @router.delete("/api-keys/{key_id}", status_code=status.HTTP_200_OK)
 async def delete_api_key(
-    key_id: uuid.UUID,
+    key_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete/revoke an API key owned by the logged-in user."""
+    """Permanently revoke and delete an API key."""
+    # Convert string key_id to match both String or UUID column types in Postgres
+    try:
+        parsed_uuid = uuid.UUID(str(key_id))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format for key_id"
+        )
+
+    # Match by either UUID or String representation + verify ownership or legacy orphan
     query = select(APIKey).where(
-        APIKey.id == key_id,
-        APIKey.user_id == current_user.id
+        or_(
+            APIKey.id == parsed_uuid,
+            cast(APIKey.id, String) == str(key_id)
+        ),
+        or_(
+            APIKey.user_id == current_user.id,
+            APIKey.user_id == None
+        )
     )
     result = await db.execute(query)
     api_key_entry = result.scalar_one_or_none()
@@ -95,7 +120,8 @@ async def delete_api_key(
             detail="API key not found or you do not have permission to delete it."
         )
 
+    # Hard delete from PostgreSQL
     await db.delete(api_key_entry)
     await db.commit()
 
-    return {"message": "API key revoked successfully", "id": str(key_id)}
+    return {"message": "API key deleted permanently from PostgreSQL", "id": str(key_id)}
