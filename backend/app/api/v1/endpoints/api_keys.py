@@ -26,8 +26,8 @@ class APIKeyListItem(BaseModel):
     class Config:
         from_attributes = True
 
-# 1. CREATE
-@router.post("/api-keys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
+# POST /v1/api-keys
+@router.post("", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     key_in: APIKeyCreate,
     db: AsyncSession = Depends(get_db),
@@ -56,8 +56,8 @@ async def create_api_key(
         created_at=api_key_entry.created_at
     )
 
-# 2. LIST
-@router.get("/api-keys", response_model=List[APIKeyListItem])
+# GET /v1/api-keys
+@router.get("", response_model=List[APIKeyListItem])
 async def list_api_keys(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -72,8 +72,8 @@ async def list_api_keys(
     )
     return result.scalars().all()
 
-# 3. DELETE (Handles UUID and String matching)
-@router.delete("/api-keys/{key_id}", status_code=status.HTTP_200_OK)
+# DELETE /v1/api-keys/{key_id}
+@router.delete("/{key_id}", status_code=status.HTTP_200_OK)
 async def delete_api_key(
     key_id: str,
     db: AsyncSession = Depends(get_db),
@@ -97,7 +97,7 @@ async def delete_api_key(
     if not api_key_entry:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"API key {key_id} not found in database."
+            detail=f"API key {key_id} not found."
         )
 
     await db.delete(api_key_entry)
