@@ -35,7 +35,6 @@ async def create_api_key(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Generate a new secure API key assigned to the logged-in user."""
     raw_key = generate_api_key()
     hashed_key = hash_api_key(raw_key)
 
@@ -67,14 +66,13 @@ async def list_api_keys(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Fetch only active keys owned by the current logged-in user."""
     result = await db.execute(
         select(APIKey)
         .where(
             APIKey.is_active == True,
             or_(
                 APIKey.user_id == current_user.id,
-                APIKey.user_id == None  # Includes unassigned legacy keys
+                APIKey.user_id == None
             )
         )
         .order_by(APIKey.created_at.desc())
@@ -90,34 +88,27 @@ async def delete_api_key(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Permanently revoke and delete an API key."""
-    # Convert string key_id to match both String or UUID column types in Postgres
+    """Deletes the key permanently from PostgreSQL."""
     try:
-        parsed_uuid = uuid.UUID(str(key_id))
+        parsed_id = uuid.UUID(str(key_id))
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid UUID format for key_id"
-        )
+        parsed_id = None
 
-    # Match by either UUID or String representation + verify ownership or legacy orphan
-    query = select(APIKey).where(
-        or_(
-            APIKey.id == parsed_uuid,
-            cast(APIKey.id, String) == str(key_id)
-        ),
-        or_(
-            APIKey.user_id == current_user.id,
-            APIKey.user_id == None
+    # Query key by UUID or string match
+    if parsed_id:
+        query = select(APIKey).where(
+            or_(APIKey.id == parsed_id, cast(APIKey.id, String) == str(key_id))
         )
-    )
+    else:
+        query = select(APIKey).where(cast(APIKey.id, String) == str(key_id))
+
     result = await db.execute(query)
     api_key_entry = result.scalar_one_or_none()
 
     if not api_key_entry:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found or you do not have permission to delete it."
+            detail=f"API key {key_id} not found in database."
         )
 
     # Hard delete from PostgreSQL
