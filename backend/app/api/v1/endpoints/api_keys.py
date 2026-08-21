@@ -26,9 +26,7 @@ class APIKeyListItem(BaseModel):
     class Config:
         from_attributes = True
 
-# ------------------------------------------------------------------
-# 1. CREATE API KEY (POST /v1/api-keys)
-# ------------------------------------------------------------------
+# 1. CREATE
 @router.post("/api-keys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     key_in: APIKeyCreate,
@@ -58,9 +56,7 @@ async def create_api_key(
         created_at=api_key_entry.created_at
     )
 
-# ------------------------------------------------------------------
-# 2. LIST API KEYS (GET /v1/api-keys)
-# ------------------------------------------------------------------
+# 2. LIST
 @router.get("/api-keys", response_model=List[APIKeyListItem])
 async def list_api_keys(
     db: AsyncSession = Depends(get_db),
@@ -70,31 +66,24 @@ async def list_api_keys(
         select(APIKey)
         .where(
             APIKey.is_active == True,
-            or_(
-                APIKey.user_id == current_user.id,
-                APIKey.user_id == None
-            )
+            or_(APIKey.user_id == current_user.id, APIKey.user_id == None)
         )
         .order_by(APIKey.created_at.desc())
     )
     return result.scalars().all()
 
-# ------------------------------------------------------------------
-# 3. DELETE API KEY (DELETE /v1/api-keys/{key_id})
-# ------------------------------------------------------------------
+# 3. DELETE (Handles UUID and String matching)
 @router.delete("/api-keys/{key_id}", status_code=status.HTTP_200_OK)
 async def delete_api_key(
     key_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Deletes the key permanently from PostgreSQL."""
     try:
         parsed_id = uuid.UUID(str(key_id))
     except ValueError:
         parsed_id = None
 
-    # Query key by UUID or string match
     if parsed_id:
         query = select(APIKey).where(
             or_(APIKey.id == parsed_id, cast(APIKey.id, String) == str(key_id))
@@ -111,7 +100,6 @@ async def delete_api_key(
             detail=f"API key {key_id} not found in database."
         )
 
-    # Hard delete from PostgreSQL
     await db.delete(api_key_entry)
     await db.commit()
 
