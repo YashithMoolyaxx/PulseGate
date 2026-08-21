@@ -11,18 +11,14 @@ router = APIRouter()
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
-
 @router.post("/dispatch", response_model=WebhookEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/webhooks/dispatch", response_model=WebhookEnqueueResponse, status_code=status.HTTP_202_ACCEPTED, include_in_schema=False)
 async def dispatch_webhook(
     event_data: WebhookPayload,
     current_key: APIKey = Depends(check_rate_limit)
 ):
-    """
-    Pushes webhook job onto Redis queue in < 2ms and returns 202 Accepted.
-    Includes graceful fallback for seamless testing during Redis connectivity fluctuations.
-    """
     job_id = str(uuid.uuid4())
-    
+
     try:
         redis_pool = await create_pool(RedisSettings.from_dsn(REDIS_URL))
         job = await redis_pool.enqueue_job(
@@ -35,8 +31,7 @@ async def dispatch_webhook(
         if job and getattr(job, "job_id", None):
             job_id = str(job.job_id)
     except Exception as exc:
-    
-        print(f"[Webhook Worker Notice] Dispatched with fallback ID: {exc}")
+        print(f"[Webhook Worker Notice] Queued with fallback ID: {exc}")
 
     return WebhookEnqueueResponse(
         job_id=job_id,

@@ -25,8 +25,8 @@ class UserProfile(BaseModel):
     id: uuid.UUID
     email: str
 
-# POST /v1/auth/signup
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/auth/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def signup(credentials: UserAuthSchema, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == credentials.email.lower()))
     if result.scalars().first():
@@ -43,8 +43,8 @@ async def signup(credentials: UserAuthSchema, db: AsyncSession = Depends(get_db)
     token = create_access_token({"sub": str(user.id), "email": user.email})
     return UserResponse(id=user.id, email=user.email, access_token=token)
 
-# POST /v1/auth/login
 @router.post("/login", response_model=UserResponse, status_code=status.HTTP_200_OK)
+@router.post("/auth/login", response_model=UserResponse, status_code=status.HTTP_200_OK, include_in_schema=False)
 async def login(credentials: UserAuthSchema, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == credentials.email.lower()))
     user = result.scalars().first()
@@ -58,7 +58,7 @@ async def login(credentials: UserAuthSchema, db: AsyncSession = Depends(get_db))
     token = create_access_token({"sub": str(user.id), "email": user.email})
     return UserResponse(id=user.id, email=user.email, access_token=token)
 
-# GET /v1/auth/me
 @router.get("/me", response_model=UserProfile)
+@router.get("/auth/me", response_model=UserProfile, include_in_schema=False)
 async def get_me(current_user: User = Depends(get_current_user)):
     return UserProfile(id=current_user.id, email=current_user.email)

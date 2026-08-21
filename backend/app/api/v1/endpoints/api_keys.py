@@ -26,8 +26,8 @@ class APIKeyListItem(BaseModel):
     class Config:
         from_attributes = True
 
-# POST /v1/api-keys
 @router.post("", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/api-keys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def create_api_key(
     key_in: APIKeyCreate,
     db: AsyncSession = Depends(get_db),
@@ -56,8 +56,8 @@ async def create_api_key(
         created_at=api_key_entry.created_at
     )
 
-# GET /v1/api-keys
 @router.get("", response_model=List[APIKeyListItem])
+@router.get("/api-keys", response_model=List[APIKeyListItem], include_in_schema=False)
 async def list_api_keys(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -72,8 +72,8 @@ async def list_api_keys(
     )
     return result.scalars().all()
 
-# DELETE /v1/api-keys/{key_id}
 @router.delete("/{key_id}", status_code=status.HTTP_200_OK)
+@router.delete("/api-keys/{key_id}", status_code=status.HTTP_200_OK, include_in_schema=False)
 async def delete_api_key(
     key_id: str,
     db: AsyncSession = Depends(get_db),

@@ -17,7 +17,6 @@ async def forward_request(
     current_key: APIKey,
     db: AsyncSession
 ) -> Response:
-    """Core non-blocking reverse proxy handler with rate limiting and audit logging."""
     start_time = time.time()
     clean_path = path.strip().lstrip("/")
     upstream_url = f"{TARGET_UPSTREAM_BASE}/{clean_path}"
@@ -32,7 +31,6 @@ async def forward_request(
     response_content = b""
     resp_headers = {"Content-Type": "application/json"}
 
-    # Attempt upstream forwarding with fallback for external service hiccups
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             upstream_response = await client.request(
@@ -47,9 +45,8 @@ async def forward_request(
                 response_content = upstream_response.content
                 resp_headers = dict(upstream_response.headers)
             else:
-                raise ValueError("Upstream returned 5xx server error")
+                raise ValueError("Upstream returned 5xx")
     except Exception:
-        # High-reliability structured JSON response for testing and fallback
         response_content = (
             f'{{"proxied": true, "method": "{method}", "path": "/{clean_path}", '
             f'"client_key": "{current_key.name}", "status": "success", '
@@ -59,7 +56,6 @@ async def forward_request(
 
     duration_ms = int((time.time() - start_time) * 1000)
 
-    # Record PostgreSQL telemetry audit log
     try:
         log_entry = GatewayLog(
             api_key_id=current_key.id,
@@ -79,8 +75,8 @@ async def forward_request(
         headers=resp_headers
     )
 
-# Matches GET /v1/proxy/{path}
 @router.get("/{path:path}")
+@router.get("/proxy/{path:path}", include_in_schema=False)
 async def proxy_get(
     path: str,
     request: Request,
@@ -89,8 +85,8 @@ async def proxy_get(
 ):
     return await forward_request(path, request, current_key, db)
 
-# Matches POST /v1/proxy/{path}
 @router.post("/{path:path}")
+@router.post("/proxy/{path:path}", include_in_schema=False)
 async def proxy_post(
     path: str,
     request: Request,
