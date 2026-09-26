@@ -8,7 +8,7 @@ import ApiKeyTable from './components/ApiKeyTable';
 import ProxyTester from './components/ProxyTester';
 import WebhookTester from './components/WebhookTester';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://pulsegate-29ys.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('pulsegate_token') || '');
