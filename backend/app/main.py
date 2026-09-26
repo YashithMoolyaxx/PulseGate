@@ -31,21 +31,21 @@ app = FastAPI(
 app.add_middleware(PrometheusMetricsMiddleware)
 
 # 2. CORS Middleware (Outermost - Must be added LAST to execute FIRST on incoming preflight OPTIONS)
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://pulse-gate-nine.vercel.app",  # Your production Vercel frontend
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://pulse-gate-nine.vercel.app",
-        "https://pulse-gate-nu.vercel.app",
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Mount Prometheus Scrape Target
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
